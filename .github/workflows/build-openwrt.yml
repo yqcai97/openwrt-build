@@ -23,6 +23,17 @@ jobs:
             "https://github.com/vernesong/OpenClash/releases/download/v0.47.156/luci-app-openclash_0.47.156_all.ipk"
           file prebuilt/luci-app-openclash_0.47.156_all.ipk
 
+      - name: Neutralize openclash postinst (ImageBuilder compatibility)
+        run: |
+          cd prebuilt
+          mkdir -p debx
+          dpkg-deb -R luci-app-openclash_0.47.156_all.ipk debx
+          printf '#!/bin/sh\nexit 0\n' > debx/DEBIAN/postinst
+          chmod +x debx/DEBIAN/postinst
+          rm -f luci-app-openclash_0.47.156_all.ipk
+          dpkg-deb -b debx luci-app-openclash_0.47.156_all.ipk
+          file luci-app-openclash_0.47.156_all.ipk
+
       - name: Build firmware
         run: |
           chmod +x build-custom.sh
