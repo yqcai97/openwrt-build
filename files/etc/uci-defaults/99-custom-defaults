@@ -1,0 +1,35 @@
+#!/bin/sh
+# OpenWrt 首次启动自动配置（uci-defaults 机制）
+# 刷入后第一次开机自动执行，然后删除自身
+# 修改这里的值 = 定制你的固件默认设置
+
+# --- 网络：管理地址 ---
+uci set network.lan.ipaddr='192.168.1.1'
+uci set network.lan.netmask='255.255.255.0'
+uci set network.lan.dns='223.5.5.5 119.29.29.29'
+uci commit network
+
+# --- 系统：主机名 / 时区 / NTP ---
+uci set system.@system[0].hostname='OpenWrt-Custom'
+uci set system.@system[0].timezone='CST-8'
+uci set system.@system[0].zonename='Asia/Shanghai'
+uci set system.ntp.enabled='1'
+uci set system.ntp.server='ntp.aliyun.com'
+uci commit system
+
+# --- 密码：默认 root/root（登录后请立即修改）---
+# 注意：生产环境请改成你自己的密码哈希；这里保持简单
+echo -e 'root\nroot' | passwd root
+
+# --- 无线（如有无线网卡）---
+# uci set wireless.radio0.disabled='0'
+# uci commit wireless
+
+# --- 其他常用默认（按需增删）---
+# 关闭 IPv6 前缀通告（如需）
+# uci delete dhcp.lan.dhcpv6
+# uci commit dhcp
+
+# 执行完毕，删除自身防止重复执行
+rm -f /etc/uci-defaults/99-custom-defaults
+exit 0
