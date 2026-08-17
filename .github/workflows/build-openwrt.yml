@@ -25,8 +25,14 @@ jobs:
 
       - name: Fix openclash ipk (neutralize postinst, rebuild as ar)
         run: |
-          python3 fix-openclash-ipk.py prebuilt/luci-app-openclash_0.47.156_all.ipk
-          file prebuilt/luci-app-openclash_0.47.156_all.ipk
+          python3 fix-openclash-ipk.py prebuilt/luci-app-openclash_0.47.156_all.ipk openclash-files
+          # 把解出的 openclash 文件合并进 files/ 覆盖层（随 FILES= 注入根文件系统）
+          if [ -d openclash-files ]; then
+            mkdir -p files
+            cp -r openclash-files/. files/
+          fi
+          find files -type f | head -20
+          echo "overlay files: $(find files -type f | wc -l)"
 
       - name: Build firmware
         run: |
