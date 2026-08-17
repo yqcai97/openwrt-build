@@ -6,8 +6,8 @@ luci
 luci-i18n-base-zh-cn
 luci-i18n-opkg-zh-cn
 
-# --- 科学上网：openclash（预编译 .ipk，见 prebuilt/ 与 build-custom.sh）---
-luci-app-openclash
+# --- 科学上网：openclash ---
+# 注：openclash 不再作为 opkg 包安装，改为通过 FILES 覆盖层直接注入（见 fix-openclash-ipk.py / workflow）
 # 依赖
 ip-full
 dnsmasq-full
