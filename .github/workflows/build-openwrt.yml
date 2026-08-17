@@ -45,3 +45,15 @@ jobs:
           name: openwrt-firmware
           path: bin/
           if-no-files-found: error
+
+      - name: Create GitHub Release with firmware
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd bin
+          VERSION="firmware-$(date +%Y%m%d-%H%M)"
+          gh release create "$VERSION" *.img.gz sha256sums \
+            --repo "${{ github.repository }}" \
+            --title "OpenWrt 23.05.5 定制固件 (CWWK G4 + openclash)" \
+            --notes "四口网卡驱动 + openclash + docker/upnp/sqm 等；默认 192.168.1.1 / root / root"
+          echo "release created: $VERSION"
