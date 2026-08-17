@@ -1,0 +1,39 @@
+# ===== OpenWrt 预装插件清单（CWWK G4 / J4125 四口最终版）=====
+# 仅包含已在阿里镜像 23.05.5 官方源验证存在的包；openclash 走预编译 .ipk
+
+# --- 基础界面与中文 ---
+luci
+luci-i18n-base-zh-cn
+luci-i18n-opkg-zh-cn
+
+# --- 科学上网：openclash（预编译 .ipk，见 prebuilt/ 与 build-custom.sh）---
+luci-app-openclash
+# 依赖
+ip-full
+dnsmasq-full
+kmod-tun
+kmod-nft-tproxy
+iptables-mod-tproxy
+
+# --- 网卡驱动（CWWK G4 四口全覆盖）---
+kmod-igc        # Intel I225/I226（2.5G 网口）
+kmod-igb        # Intel I210/I211（千兆网口）
+kmod-e1000e     # Intel 千兆（备用）
+kmod-r8169      # Realtek 网卡（备用）
+
+# --- 存储/USB 支持 ---
+kmod-usb3
+kmod-usb-storage
+block-mount
+kmod-fs-ext4
+
+# --- 常用应用（官方源内可用的）---
+luci-app-docker
+luci-app-upnp
+luci-app-sqm
+luci-app-ttyd
+luci-app-watchcat
+luci-app-advanced-reboot
+
+# --- 说明：以下在官方 23.05.5 源不存在，已移除（可在刷机后从第三方源自行安装）---
+# luci-theme-argon / luci-app-adguardhome / luci-app-zerotier / luci-app-turboacc / luci-app-netdata / luci-app-autoreboot
