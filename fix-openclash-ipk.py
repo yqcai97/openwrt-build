@@ -23,7 +23,7 @@ def parse_tar(buf):
     off = 0
     while off + 512 <= len(buf):
         name = buf[off:off+100].split(b'\x00')[0].decode('utf-8', 'replace')
-        size = int(buf[off+124:off+136].strip() or b'0', 8)
+        size = int(buf[off+124:off+136].split(b'\x00')[0].strip() or b'0', 8)
         if not name:
             break
         typ = chr(buf[off+156] or 48)
