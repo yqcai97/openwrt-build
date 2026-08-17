@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-"""Fix the OpenClash release 'ipk' for OpenWrt ImageBuilder.
+"""Extract the OpenClash release 'ipk' contents into an overlay directory.
 
-The GitHub asset is actually: gzip( tar{ ./debian-binary, ./data.tar.gz, ./control.tar.gz } )
-Its control.tar.gz carries a postinst that fails inside the ImageBuilder rootfs
-(baked host paths, missing default_postinst). This script:
-  1. gunzips the wrapper if needed
-  2. parses the tar container manually (non-standard, no ustar magic)
-  3. neutralizes ./postinst inside control.tar.gz
-  4. rebuilds a standard ar-format .ipk (debian-binary / control.tar.gz / data.tar.gz)
+The GitHub asset is: gzip( tar{ ./debian-binary, ./data.tar.gz, ./control.tar.gz } )
+We extract ./data.tar.gz and write its entries into ./openclash-files/ so the
+OpenWrt ImageBuilder FILES= overlay can bake them directly into the rootfs
+(no opkg package install, no postinst, no package index needed).
 """
-import gzip, io, os, sys
+import gzip, io, os, sys, shutil
 
 SRC = sys.argv[1] if len(sys.argv) > 1 else 'luci-app-openclash_0.47.156_all.ipk'
+OUT = sys.argv[2] if len(sys.argv) > 2 else 'openclash-files'
 data = open(SRC, 'rb').read()
 
-# 1) gunzip wrapper
 if data[:2] == b'\x1f\x8b':
     data = gzip.decompress(data)
 
@@ -31,61 +28,42 @@ def parse_tar(buf):
         off += 512 + ((size + 511) // 512) * 512
     return entries
 
-def write_tar(entries):
-    out = io.BytesIO()
-    for name, typ, body in entries:
-        h = bytearray(512)
-        h[0:100] = name.encode('utf-8')[:100].ljust(100, b'\x00')
-        h[100:108] = b'0000644\x00'
-        h[108:116] = b'0000000\x00'
-        h[116:124] = b'0000000\x00'
-        h[124:136] = ('%011o' % len(body)).encode() + b'\x00'
-        h[136:148] = b'00000000000\x00'
-        h[148:156] = b' ' * 8
-        h[156] = ord(typ)
-        h[257:263] = b'ustar\x00'
-        h[263:265] = b'00'
-        h[265:269] = b'root'
-        h[297:301] = b'root'
-        chk = sum(h)
-        h[148:156] = ('%06o' % chk).encode() + b'\x00 '
-        out.write(bytes(h))
-        pad = ((len(body) + 511) // 512) * 512
-        out.write(body + b'\x00' * (pad - len(body)))
-    out.write(b'\x00' * 1024)
-    return out.getvalue()
-
-# 2) parse tar container
 container = parse_tar(data)
 print('container:', [(n, t) for n, t, _ in container])
-by_name = {n: (t, b) for n, t, b in container}
-debian = by_name['./debian-binary'][1]
-data_tar = by_name['./data.tar.gz'][1]
-ctrl_tar = by_name['./control.tar.gz'][1]
+data_tar = next(b for n, t, b in container if 'data.tar.gz' in n)
 
-# 3) neutralize postinst inside control.tar.gz
-ctrl_entries = parse_tar(gzip.decompress(ctrl_tar))
-fixed = []
-for name, typ, body in ctrl_entries:
-    if name.endswith('postinst'):
-        body = b'#!/bin/sh\nexit 0\n'
-        typ = '0'
-    fixed.append((name, typ, body))
-new_ctrl = gzip.compress(write_tar(fixed))
-print('control.tar.gz:', len(ctrl_tar), '->', len(new_ctrl))
+# 解出 data.tar.gz 的条目
+entries = parse_tar(gzip.decompress(data_tar))
+print('data entries:', len(entries), 'e.g.', [n for n, _, _ in entries[:6]])
 
-# 4) rebuild standard ar ipk
-def ar_member(name, body):
-    nm = (name + '/').encode()[:16].ljust(16, b' ')
-    hdr = nm + b'0'*12 + b'0'*6 + b'0'*6 + b'100644  '
-    hdr += str(len(body)).encode().rjust(10, b' ')
-    hdr += b'`\n'
-    assert len(hdr) == 60, len(hdr)
-    out = hdr + body
-    if len(body) % 2:
-        out += b'\n'
-    return out
+if os.path.exists(OUT):
+    shutil.rmtree(OUT)
+os.makedirs(OUT)
 
-ipk = b'!<arch>\n' + ar_member('debian-binary', debian) + ar_member('control.tar.gz', new_ctrl) + ar_member('data.tar.gz', data_tar)
-open(SRC, 'wb').write(ipk)
-print('fixed ipk written:', os.path.getsize(SRC), 'bytes')
+for name, typ, body in entries:
+    rel = name.lstrip('./')
+    if not rel:
+        continue
+    dst = os.path.join(OUT, rel)
+    if typ == '5' or name.endswith('/'):  # directory
+        os.makedirs(dst, exist_ok=True)
+        continue
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with open(dst, 'wb') as f:
+        f.write(body)
+    # 可执行文件保持可执行
+    if typ == '2':  # symlink
+        try:
+            target = body.decode('utf-8')
+            if os.path.lexists(dst):
+                os.remove(dst)
+            os.symlink(target, dst)
+        except OSError as e:
+            print('symlink skip:', rel, e)
+
+# 确保 /etc/openclash 存在
+os.makedirs(os.path.join(OUT, 'etc', 'openclash'), exist_ok=True)
+open(os.path.join(OUT, 'etc', 'openclash', '.keep'), 'w').close()
+
+total = sum(len(b) for _, _, b in entries)
+print('extracted to', OUT, '| total bytes:', total)
